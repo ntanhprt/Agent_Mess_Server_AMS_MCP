@@ -44,9 +44,11 @@ the agent goes OFFLINE once the process exits (presence has a 15s TTL).
 
 ## Using it from Claude Code (MCP)
 
-Edit `.mcp.json` (a template is included in this repo) with the real absolute
-path to the installed `agent-mesh-mcp` script (`which agent-mesh-mcp` after
-installing) and your Gateway URL/token:
+Copy `.mcp.json.example` (included in this repo) to `.mcp.json` and fill in
+the real absolute path to the installed `agent-mesh-mcp` script (`which
+agent-mesh-mcp` after installing) and your Gateway URL/token. **Never commit
+`.mcp.json` with your real token to a public repo** — that's exactly why this
+repo ships `.mcp.json.example` instead of a filled-in `.mcp.json`:
 
 ```json
 {

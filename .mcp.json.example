@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "agent-mesh": {
+      "command": "/absolute/path/to/.venv/bin/agent-mesh-mcp",
+      "env": {
+        "AGENT_GATEWAY_URL": "http://localhost:8420",
+        "AGENT_MESH_JOIN_TOKEN": "dev-join-token-change-me"
+      }
+    }
+  }
+}
