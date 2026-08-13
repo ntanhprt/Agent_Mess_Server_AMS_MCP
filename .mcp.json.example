@@ -4,7 +4,10 @@
       "command": "/absolute/path/to/.venv/bin/agent-mesh-mcp",
       "env": {
         "AGENT_GATEWAY_URL": "http://localhost:8420",
-        "AGENT_MESH_JOIN_TOKEN": "dev-join-token-change-me"
+        "AGENT_MESH_JOIN_TOKEN": "dev-join-token-change-me",
+        "AGENT_MESH_MINIO_ENDPOINT": "http://localhost:8421",
+        "AGENT_MESH_MINIO_ACCESS_KEY": "agentmesh",
+        "AGENT_MESH_MINIO_SECRET_KEY": "dev-minio-secret-change-me"
       }
     }
   }

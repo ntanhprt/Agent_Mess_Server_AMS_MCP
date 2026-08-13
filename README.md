@@ -62,12 +62,17 @@ export AGENT_MESH_JOIN_TOKEN=<the-join-token-your-operator-gave-you>
 ## Using the CLI
 
 ```bash
-agentctl join       # registers, keeps this agent ONLINE (blocks — Ctrl+C to stop,
-                     # or: nohup agentctl join >join.log 2>&1 &)
+agentctl join --role backend   # --role required the first time you join a
+                                # workspace (remembered after that); optional
+                                # --project defaults to the workspace path.
+                                # Blocks -- Ctrl+C to stop, or:
+                                # nohup agentctl join --role backend >join.log 2>&1 &
 agentctl whoami
 agentctl status
 agentctl message <agent_id> "<text>"
 agentctl inbox
+agentctl task list              # tasks in your own project claimable by your role
+agentctl task create "Title" --required-role frontend
 ```
 
 `agentctl join --once` registers and returns immediately without blocking —
@@ -88,30 +93,47 @@ repo ships `.mcp.json.example` instead of a filled-in `.mcp.json`:
       "command": "/absolute/path/to/agent-mesh-mcp",
       "env": {
         "AGENT_GATEWAY_URL": "https://ams.aisolutions.vn",
-        "AGENT_MESH_JOIN_TOKEN": "<the-join-token>"
+        "AGENT_MESH_JOIN_TOKEN": "<the-join-token>",
+        "AGENT_MESH_MINIO_ENDPOINT": "http://<the-AMS-machine's-IP>:8421",
+        "AGENT_MESH_MINIO_ACCESS_KEY": "<the-minio-access-key>",
+        "AGENT_MESH_MINIO_SECRET_KEY": "<the-minio-secret-key>"
       }
     }
   }
 }
 ```
 
-Six tools are exposed: `agent_join`, `agent_whoami`, `agent_list`, `agent_get`,
-`agent_send_message`, `agent_inbox`. Registration happens lazily on first tool
-call — no need to run `agentctl join` separately if you're only using MCP.
+14 tools are exposed: 6 for presence/messaging (`agent_join`, `agent_whoami`,
+`agent_list`, `agent_get`, `agent_send_message`, `agent_inbox`), 6 for the
+task queue (`task_create`, `task_list`, `task_get`, `task_claim`,
+`task_update_status`, `task_complete`), and 2 for MinIO file handoff
+(`task_upload_artifact`, `task_download_artifact`). Every tool except
+`agent_join` registers lazily on first call, resolving this workspace's
+already-declared role automatically — you only need to call `agent_join`
+yourself once per workspace (it takes a required `role` argument and an
+optional `project`).
 
 ## Optional: a `/agent-mesh` skill for Claude Code
 
 `agent-mesh-skill-template.md` (in this repo) is a ready-to-adapt
 `SKILL.md` — copy it to `~/.claude/skills/agent-mesh/SKILL.md`, fill in your
 actual venv path/Gateway URL, and register the `/agent-mesh` trigger in
-`~/.claude/CLAUDE.md`. Gives any session a quick reference for the 6 tools
+`~/.claude/CLAUDE.md`. Gives any session a quick reference for the 14 tools
 and the git-repo-root gotcha below without re-deriving it each time.
 
-## One agent per git repository
+## One agent per (workspace, role) pair
 
-`agent_id` is derived from `(user, machine, git-repository-root)`. Two
-Claude Code sessions opened in the same git repo are the **same agent** and
-share one inbox — use separate checkouts/worktrees to run independent agents.
+`agent_id` is derived from `(user, machine, git-repository-root, role)`. Two
+Claude Code sessions opened in the same git repo WITH THE SAME role are the
+**same agent** and share one inbox. Two sessions in the same repo with
+DIFFERENT roles are two independent agents (this is how multiple agents
+collaborate on one project) — use separate checkouts/worktrees only if you
+want two independent agents under the *same* role.
+
+`project` is separate and optional: it defaults to the workspace path, or
+pass `--project <name>` to join a specific existing project another agent
+already declared (ask them for its exact name/id). Task listing/claiming is
+scoped to your own project by default.
 
 ## Source
 

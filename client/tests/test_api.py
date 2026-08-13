@@ -178,3 +178,73 @@ def test_send_message_and_inbox_roundtrip(monkeypatch, tmp_path):
 
     received = api.inbox("agent-bbb222", "key-b")
     assert received[0]["body"] == "hi"
+
+
+@responses.activate
+def test_create_task_posts_to_tasks_endpoint(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENT_MESH_HOME", str(tmp_path))
+    responses.add(
+        responses.POST,
+        f"{config.gateway_url()}/tasks",
+        json={
+            "task_id": "t1", "project": "/w", "title": "T1", "description": None,
+            "created_by": "agent-a", "required_role": "backend", "assigned_to": None,
+            "status": "READY", "priority": "normal", "input_ref": None, "artifact_ref": None,
+            "depends_on": [], "created_at": "2026-08-13T00:00:00", "updated_at": "2026-08-13T00:00:00",
+        },
+        status=200,
+    )
+
+    result = api.create_task("agent-a", "key-a", "T1", required_role="backend")
+
+    assert result["task_id"] == "t1"
+    sent_body = responses.calls[0].request.body
+    assert b'"required_role": "backend"' in sent_body or b'"required_role":"backend"' in sent_body
+
+
+@responses.activate
+def test_claim_task_posts_to_claim_endpoint(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENT_MESH_HOME", str(tmp_path))
+    responses.add(
+        responses.POST,
+        f"{config.gateway_url()}/tasks/t1/claim",
+        json={"task_id": "t1", "status": "CLAIMED", "assigned_to": "agent-a"},
+        status=200,
+    )
+
+    result = api.claim_task("agent-a", "key-a", "t1")
+
+    assert result["status"] == "CLAIMED"
+
+
+@responses.activate
+def test_list_tasks_sends_project_as_query_param_when_provided(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENT_MESH_HOME", str(tmp_path))
+    responses.add(
+        responses.GET,
+        f"{config.gateway_url()}/tasks",
+        json=[],
+        status=200,
+    )
+
+    api.list_tasks("agent-a", "key-a", project="javis-core")
+
+    assert responses.calls[0].request.params["project"] == "javis-core"
+
+
+@responses.activate
+def test_claim_task_raises_gateway_error_on_conflict(monkeypatch, tmp_path):
+    monkeypatch.setenv("AGENT_MESH_HOME", str(tmp_path))
+    responses.add(
+        responses.POST,
+        f"{config.gateway_url()}/tasks/t1/claim",
+        json={"detail": "task is not claimable"},
+        status=409,
+    )
+
+    raised = False
+    try:
+        api.claim_task("agent-a", "key-a", "t1")
+    except api.GatewayError:
+        raised = True
+    assert raised

@@ -42,24 +42,38 @@ OS accounts on this machine) to see each other and send messages, built at
   to run the same `claude mcp add --scope user ...` under its own login;
   `~/.claude.json` is per-account and can't be written cross-account.
 
-## The 6 MCP tools
+## The 14 MCP tools
 
 | Tool | Does |
 |---|---|
-| `agent_join` | Register/refresh presence (ONLINE, 15s TTL). Other tools call this lazily, so you rarely need to call it directly. |
+| `agent_join` | Register with a role (required) and optional project. Other tools call this lazily to resolve an already-established role/project, so you only need to call it directly once per workspace. |
 | `agent_whoami` | This session's own `agent_id` |
 | `agent_list` | List agents currently ONLINE in the mesh |
 | `agent_get` | Detail for one agent by id |
 | `agent_send_message` | Send a message to another `agent_id` |
 | `agent_inbox` | Read messages sent to you |
+| `task_create` | Create a task, optionally with `required_role`/`depends_on`/`project` |
+| `task_list` | List tasks in your own project matching your role by default |
+| `task_get` | Detail for one task by id |
+| `task_claim` | Atomically claim a READY task matching your role and project |
+| `task_update_status` | Move a claimed task to IN_PROGRESS/REVIEW/FAILED |
+| `task_complete` | Mark a task DONE, optionally attaching an artifact_ref |
+| `task_upload_artifact` | Upload a local file to MinIO, returning its object key |
+| `task_download_artifact` | Download a MinIO object key to a local path |
 
-## Important: `agent_id` = (user, machine, git-repo-root)
+## Important: `agent_id` = (user, machine, git-repo-root, role)
 
-Two Claude Code sessions opened in the **same git repo** (even different
-terminals/tabs) are the **same agent** and share one inbox. To get two
-independent agents that can message each other, open **different
-checkouts/worktrees** (or different repos) — not just two tabs in the same
-directory.
+Two Claude Code sessions opened in the **same git repo with the same role**
+(even different terminals/tabs) are the **same agent** and share one inbox.
+Two sessions in the same repo with DIFFERENT roles are independent agents —
+that's the normal way multiple agents collaborate on one project. To get two
+independent agents under the SAME role, open **different checkouts/
+worktrees** (or different repos).
+
+`project` is separate from the above and optional — it defaults to the
+workspace path, or pass an explicit project name/id (from whoever created
+that project) to join a project shared across different workspaces. Task
+listing/claiming defaults to your own project.
 
 ## Using the CLI (`agentctl`) instead of Claude Code tools
 
