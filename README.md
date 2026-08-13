@@ -6,6 +6,11 @@ Install this if you want your Claude Code session (or any script) to join an
 **already-running** Agent Mesh Server (AMS); if you're setting up the AMS
 itself, use the full repo linked above instead.
 
+**This repo is a generated mirror** — don't edit it directly, changes get
+overwritten on the next sync. Edit `client/` or `mcp_server/` in the main
+repo instead; `scripts/sync_mcp_dist.sh` there publishes here automatically
+on every push that touches those directories.
+
 ## Install (one command, no clone needed)
 
 ```bash

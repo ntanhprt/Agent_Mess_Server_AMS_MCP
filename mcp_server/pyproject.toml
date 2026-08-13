@@ -6,6 +6,12 @@ dependencies = [
     # Pulled from this same repo's client/ subdirectory so a single
     # `pip install agent-mesh-mcp @ git+.../#subdirectory=mcp_server` installs
     # both packages — no separate client install step, no cloning needed.
+    #
+    # This file (mcp_server/pyproject.dist.toml in the main repo) is NOT the
+    # one used for local development — see mcp_server/pyproject.toml for
+    # that. scripts/sync_mcp_dist.sh copies THIS file in as pyproject.toml
+    # when publishing to github.com/ntanhprt/Agent_Mess_Server_AMS_MCP, so
+    # the standalone repo is self-contained and installable with one command.
     "agent-mesh-client @ git+https://github.com/ntanhprt/Agent_Mess_Server_AMS_MCP.git#subdirectory=client",
     # mcp 2.0.0 is a breaking rewrite that removes mcp.server.fastmcp.FastMCP
     # entirely (renamed/restructured to mcp.server.mcpserver.MCPServer), so we
