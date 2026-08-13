@@ -21,6 +21,37 @@ This single command also pulls in `agent-mesh-client` (the CLI/library) from
 this same repo automatically — `agentctl` and `agent-mesh-mcp` both land on
 your `PATH` (inside whatever venv you ran the command in).
 
+> **Never add `--user` to that command.** It's been confirmed to fail: `pip
+> install --user "agent-mesh-mcp @ git+...#subdirectory=mcp_server"` makes
+> pip resolve the metadata project name as `unknown` instead of
+> `agent-mesh-mcp` and abort with "has inconsistent name." The exact same
+> command without `--user`, into any venv, works fine — this is a real `pip
+> install --user` limitation with a package whose dependency is itself a
+> `git+URL#subdirectory=` requirement from the same repo, not something this
+> package can fix on its own. Always install into a venv.
+
+**Want this in every Claude Code project on this account, not just one?**
+Use a dedicated venv (so it isn't deleted along with any one project
+checkout) and register it at MCP user scope instead of a per-project
+`.mcp.json`:
+
+```bash
+python3 -m venv ~/.local/share/agent-mesh-mcp/venv
+~/.local/share/agent-mesh-mcp/venv/bin/pip install \
+  "agent-mesh-mcp @ git+https://github.com/ntanhprt/Agent_Mess_Server_AMS_MCP.git#subdirectory=mcp_server"
+
+claude mcp add --scope user agent-mesh \
+  -e AGENT_GATEWAY_URL=https://ams.aisolutions.vn \
+  -e AGENT_MESH_JOIN_TOKEN=<the-join-token> \
+  -- ~/.local/share/agent-mesh-mcp/venv/bin/agent-mesh-mcp
+
+claude mcp list   # confirm "agent-mesh ... ✔ Connected"
+```
+
+Multiple OS user accounts on the same machine each need to run this
+themselves under their own login — one account can't write another's
+`~/.claude.json`.
+
 ## Point yourself at a mesh
 
 ```bash
@@ -67,6 +98,14 @@ repo ships `.mcp.json.example` instead of a filled-in `.mcp.json`:
 Six tools are exposed: `agent_join`, `agent_whoami`, `agent_list`, `agent_get`,
 `agent_send_message`, `agent_inbox`. Registration happens lazily on first tool
 call — no need to run `agentctl join` separately if you're only using MCP.
+
+## Optional: a `/agent-mesh` skill for Claude Code
+
+`agent-mesh-skill-template.md` (in this repo) is a ready-to-adapt
+`SKILL.md` — copy it to `~/.claude/skills/agent-mesh/SKILL.md`, fill in your
+actual venv path/Gateway URL, and register the `/agent-mesh` trigger in
+`~/.claude/CLAUDE.md`. Gives any session a quick reference for the 6 tools
+and the git-repo-root gotcha below without re-deriving it each time.
 
 ## One agent per git repository
 
