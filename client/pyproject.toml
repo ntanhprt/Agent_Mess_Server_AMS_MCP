@@ -1,0 +1,22 @@
+[project]
+name = "agent-mesh-client"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    "requests>=2.31,<3",
+    "click>=8.1,<9",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "responses>=0.25"]
+
+[project.scripts]
+agentctl = "agent_mesh_client.cli:cli"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agent_mesh_client*"]

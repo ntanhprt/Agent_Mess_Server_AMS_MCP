@@ -1,0 +1,32 @@
+[project]
+name = "agent-mesh-mcp"
+version = "0.1.0"
+requires-python = ">=3.10"
+dependencies = [
+    # Pulled from this same repo's client/ subdirectory so a single
+    # `pip install agent-mesh-mcp @ git+.../#subdirectory=mcp_server` installs
+    # both packages — no separate client install step, no cloning needed.
+    "agent-mesh-client @ git+https://github.com/ntanhprt/Agent_Mess_Server_AMS_MCP.git#subdirectory=client",
+    # mcp 2.0.0 is a breaking rewrite that removes mcp.server.fastmcp.FastMCP
+    # entirely (renamed/restructured to mcp.server.mcpserver.MCPServer), so we
+    # cap it below that major version.
+    "mcp>=1.0.0,<2.0.0",
+    # Without this pin, pip resolves the newest sse-starlette (a transitive
+    # dependency of mcp), which requires starlette>=0.49 and can collide with
+    # an older starlette/fastapi pin elsewhere in the same environment.
+    "starlette<0.39.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+agent-mesh-mcp = "agent_mesh_mcp.server:main"
+
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["agent_mesh_mcp*"]
