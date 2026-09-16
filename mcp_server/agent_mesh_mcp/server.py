@@ -116,11 +116,17 @@ def log_work(title: str, detail: str | None = None) -> dict:
 
 @mcp.tool()
 def set_openproject_scope(project_ids: list[str]) -> dict:
-    """Khai báo (các) project OpenProject mà agent này muốn bản tổng kết cuối
-    ngày tự tra để liệt kê việc cần làm hôm sau. Không có mặc định -- mỗi
-    agent tự khai báo project của riêng mình (vd project id "26" cho Javis AI,
-    hoặc project id/slug khác cho các project cá nhân). Gọi lại để ghi đè
-    toàn bộ danh sách cũ."""
+    """Khai báo (các) project OpenProject (trên project.protontech.vn, KHÔNG
+    phải project/workspace của AMS) mà agent này muốn bản tổng kết cuối ngày
+    tự tra để liệt kê việc cần làm hôm sau -- CHỈ việc đang mở và gán cho chủ
+    sở hữu OPENPROJECT_PAT, không phải toàn bộ việc mở của project.
+
+    Không có mặc định -- mỗi agent tự khai báo project của riêng mình (vd
+    project id "26" cho Javis AI, hoặc project id/slug khác cho các project cá
+    nhân). NẾU vai trò (role) của agent này không rõ tương ứng project
+    OpenProject nào, PHẢI hỏi thẳng người dùng trong chat lúc join mesh --
+    KHÔNG được tự đoán project_ids. Gọi lại tool này để ghi đè toàn bộ danh
+    sách cũ."""
     agent_id, api_key = _ensure_joined()
     return api.set_openproject_scope(agent_id, api_key, project_ids)
 
