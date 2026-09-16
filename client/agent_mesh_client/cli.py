@@ -114,6 +114,42 @@ def inbox():
         click.echo(f"[{msg['created_at']}] {msg['from_agent']}: {msg['body']}")
 
 
+@cli.command()
+def listen():
+    """Giữ tiến trình sống, in ra tin nhắn NGAY khi AMS đẩy tới (SSE push) --
+    thay cho việc phải tự gọi `agentctl inbox` lặp lại theo timer. Ctrl+C để dừng."""
+    agent_id, api_key = _current_identity()
+    click.echo(f"Listening for messages to {agent_id} (Ctrl+C to stop)...")
+
+    def on_message(msg: dict) -> None:
+        click.echo(f"[{msg['created_at']}] {msg['from_agent']}: {msg['body']}")
+
+    try:
+        api.listen_inbox(agent_id, api_key, on_message)
+    except KeyboardInterrupt:
+        click.echo("Stopped.")
+
+
+@cli.command("log-work")
+@click.argument("title")
+@click.option("--detail", default=None, help="Chi tiết đầy đủ hơn (nhiều dòng OK).")
+def log_work(title: str, detail: str | None):
+    """Ghi nhận 1 đầu việc đã hoàn thành vào Lịch làm việc (worklog).
+
+    Xuất hiện trên calendar AMS + được daily summary gom lại cuối ngày."""
+    agent_id, api_key = _current_identity()
+    click.echo(api.log_work(agent_id, api_key, title, detail=detail))
+
+
+@cli.command("set-openproject-scope")
+@click.argument("project_ids", nargs=-1, required=True)
+def set_openproject_scope_cmd(project_ids: tuple[str, ...]):
+    """Khai báo (các) project OpenProject agent này muốn daily summary tra để
+    tìm việc "ngày mai" -- vd `agentctl set-openproject-scope 26 kbac`."""
+    agent_id, api_key = _current_identity()
+    click.echo(api.set_openproject_scope(agent_id, api_key, list(project_ids)))
+
+
 @cli.group()
 def task():
     """Manage tasks in the mesh's task queue."""

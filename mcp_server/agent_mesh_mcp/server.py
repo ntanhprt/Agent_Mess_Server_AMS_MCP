@@ -102,17 +102,48 @@ def agent_inbox() -> list:
 
 
 @mcp.tool()
+def log_work(title: str, detail: str | None = None) -> dict:
+    """Ghi nhận 1 đầu việc VỪA hoàn thành vào Lịch làm việc (worklog) của AMS.
+
+    Gọi tool này mỗi khi xong 1 việc đáng kể (fix bug, ship feature, hoàn
+    thành 1 yêu cầu...) -- khác với task_complete (chỉ áp dụng cho Task đã tạo
+    trong hàng đợi task của AMS), log_work dùng được cho MỌI việc, không cần
+    có Task tương ứng. Xuất hiện trên trang Lịch làm việc (/admin/calendar) và
+    được gom vào bản tổng kết cuối ngày."""
+    agent_id, api_key = _ensure_joined()
+    return api.log_work(agent_id, api_key, title, detail=detail)
+
+
+@mcp.tool()
+def set_openproject_scope(project_ids: list[str]) -> dict:
+    """Khai báo (các) project OpenProject mà agent này muốn bản tổng kết cuối
+    ngày tự tra để liệt kê việc cần làm hôm sau. Không có mặc định -- mỗi
+    agent tự khai báo project của riêng mình (vd project id "26" cho Javis AI,
+    hoặc project id/slug khác cho các project cá nhân). Gọi lại để ghi đè
+    toàn bộ danh sách cũ."""
+    agent_id, api_key = _ensure_joined()
+    return api.set_openproject_scope(agent_id, api_key, project_ids)
+
+
+@mcp.tool()
 def task_create(
     title: str,
     description: str | None = None,
     project: str | None = None,
     required_role: str | None = None,
+    required_capabilities: list[str] | None = None,
     input_ref: str | None = None,
     priority: str = "normal",
     depends_on: list[str] | None = None,
 ) -> dict:
     """Create a task. Leave required_role unset for anyone to claim it.
-    Leave project unset to create it in your own declared project."""
+    Leave project unset to create it in your own declared project.
+
+    required_capabilities only actually gates claiming for agents that have
+    "enforce_capabilities" turned on for themselves (set from the AMS
+    dashboard, per-agent) -- a "general-purpose" agent (the default) can
+    still claim it regardless of required_capabilities, as long as its role
+    matches required_role."""
     agent_id, api_key = _ensure_joined()
     return api.create_task(
         agent_id,
@@ -121,6 +152,7 @@ def task_create(
         description=description,
         project=project,
         required_role=required_role,
+        required_capabilities=required_capabilities,
         input_ref=input_ref,
         priority=priority,
         depends_on=depends_on,
@@ -130,14 +162,28 @@ def task_create(
 @mcp.tool()
 def task_list(status: str = "READY", required_role: str | None = None, project: str | None = None) -> list:
     """List tasks. With no arguments, shows READY tasks in your own project
-    claimable by this agent (matching its own role, or with no required_role
-    at all). Pass project to look at a different project's queue."""
+    that are actually claimable by THIS agent right now: role must match (or
+    task has no required_role), and if you have enforce_capabilities turned
+    on for yourself, required_capabilities must be a subset of your own
+    capabilities too. Pass project to look at a different project's queue."""
     agent_id, api_key = _ensure_joined()
     if required_role is not None:
         return api.list_tasks(agent_id, api_key, status=status, required_role=required_role, project=project)
-    my_role = identity_mod.build_identity().get("role")
+    me = api.whoami(agent_id, api_key)
+    my_role = me.get("role")
+    my_capabilities = set(me.get("capabilities") or [])
+    enforce = bool(me.get("enforce_capabilities"))
     tasks = api.list_tasks(agent_id, api_key, status=status, project=project)
-    return [t for t in tasks if t["required_role"] in (None, my_role)]
+
+    def claimable(t: dict) -> bool:
+        if t["required_role"] not in (None, my_role):
+            return False
+        if enforce and t.get("required_capabilities"):
+            if not set(t["required_capabilities"]).issubset(my_capabilities):
+                return False
+        return True
+
+    return [t for t in tasks if claimable(t)]
 
 
 @mcp.tool()

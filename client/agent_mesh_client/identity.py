@@ -15,6 +15,21 @@ def get_machine_id() -> str:
     return socket.gethostname()
 
 
+def get_lan_ip() -> str | None:
+    """IP LAN thực tế của máy này trong mạng nội bộ (không phải IP internet ra
+    ngoài) -- dùng để phân biệt máy nào với máy nào trên AMS dashboard. Dùng
+    UDP connect trick để hỏi routing table của hệ điều hành xem interface nào
+    sẽ được dùng, không thực sự gửi gói tin nào ra ngoài."""
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except OSError:
+        return None
+    finally:
+        s.close()
+
+
 def detect_git_root(cwd: str) -> str | None:
     try:
         result = subprocess.run(
