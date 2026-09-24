@@ -207,11 +207,11 @@ def update_task_status(agent_id: str, api_key: str, task_id: str, status: str, n
     return resp.json()
 
 
-def log_work(agent_id: str, api_key: str, title: str, detail: str | None = None) -> dict:
+def log_work(agent_id: str, api_key: str, title: str, detail: str | None = None, date: str | None = None) -> dict:
     resp = requests.post(
         f"{config.gateway_url()}/worklog",
         headers=_headers(api_key),
-        json={"title": title, "detail": detail},
+        json={"title": title, "detail": detail, "date": date},
         timeout=5,
     )
     if resp.status_code != 200:

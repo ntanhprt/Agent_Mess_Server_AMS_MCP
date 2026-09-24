@@ -102,16 +102,22 @@ def agent_inbox() -> list:
 
 
 @mcp.tool()
-def log_work(title: str, detail: str | None = None) -> dict:
+def log_work(title: str, detail: str | None = None, date: str | None = None) -> dict:
     """Ghi nhận 1 đầu việc VỪA hoàn thành vào Lịch làm việc (worklog) của AMS.
 
     Gọi tool này mỗi khi xong 1 việc đáng kể (fix bug, ship feature, hoàn
     thành 1 yêu cầu...) -- khác với task_complete (chỉ áp dụng cho Task đã tạo
     trong hàng đợi task của AMS), log_work dùng được cho MỌI việc, không cần
     có Task tương ứng. Xuất hiện trên trang Lịch làm việc (/admin/calendar) và
-    được gom vào bản tổng kết cuối ngày."""
+    được gom vào bản tổng kết cuối ngày.
+
+    date (tuỳ chọn, "YYYY-MM-DD"): dùng khi QUÊN log và cần ghi bổ sung cho 1
+    ngày đã qua -- entry sẽ được tính vào đúng ngày đó (file .md + tổng kết
+    ngày hôm đó), dù gọi tool này muộn hơn. Không được là ngày tương lai. Bỏ
+    trống = hôm nay, như trước giờ. Thời điểm gọi tool thật (audit trail) vẫn
+    luôn được lưu riêng, không bị mất."""
     agent_id, api_key = _ensure_joined()
-    return api.log_work(agent_id, api_key, title, detail=detail)
+    return api.log_work(agent_id, api_key, title, detail=detail, date=date)
 
 
 @mcp.tool()
