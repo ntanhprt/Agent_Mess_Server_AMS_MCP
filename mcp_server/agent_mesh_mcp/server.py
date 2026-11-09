@@ -1,7 +1,7 @@
 import requests
 from mcp.server.fastmcp import FastMCP
 
-from agent_mesh_client import api, config, artifacts
+from agent_mesh_client import api, config, artifacts, state
 from agent_mesh_client import identity as identity_mod
 from agent_mesh_client.heartbeat import HeartbeatThread
 
@@ -60,7 +60,38 @@ def agent_join(role: str, display_name: str = "", domain: str = "", project: str
         _heartbeat.stop()
     _heartbeat = HeartbeatThread(agent_id, api_key)
     _heartbeat.start()
-    return api.whoami(agent_id, api_key)
+    me = api.whoami(agent_id, api_key)
+    # Unfinished work saved before a crash/restart (see agent_checkpoint_save).
+    cp = state.load_checkpoint(agent_id)
+    if cp:
+        me = {**me, "resume_checkpoint": cp}
+    return me
+
+
+@mcp.tool()
+def agent_checkpoint_save(
+    task_id: str | None = None, note: str | None = None, docs: list[str] | None = None
+) -> dict:
+    """Persist your in-progress work context locally (atomic, survives power loss/restart):
+    the task_id, a short note on where you are, and paths/refs of drafts or documents.
+    Call it at every milestone. On the next agent_join the checkpoint comes back as
+    `resume_checkpoint`. Never store secrets here."""
+    agent_id, _ = _ensure_joined()
+    return state.save_checkpoint(agent_id, task_id=task_id, note=note, docs=docs)
+
+
+@mcp.tool()
+def agent_checkpoint_get() -> dict:
+    """Return the saved in-progress checkpoint for this agent (empty dict if none)."""
+    agent_id, _ = _ensure_joined()
+    return state.load_checkpoint(agent_id) or {}
+
+
+@mcp.tool()
+def agent_checkpoint_clear() -> dict:
+    """Clear the checkpoint once the work is finished."""
+    agent_id, _ = _ensure_joined()
+    return {"cleared": state.clear_checkpoint(agent_id)}
 
 
 @mcp.tool()
@@ -237,6 +268,133 @@ def task_upload_artifact(path: str, task_id: str) -> str:
 def task_download_artifact(object_key: str, dest_path: str) -> None:
     """Download a MinIO object (an artifact_ref from a task) to a local path."""
     artifacts.download_artifact(object_key, dest_path)
+
+
+@mcp.tool()
+def operator_report(body: str, title: str | None = None, task_id: str | None = None) -> dict:
+    """Push a RESULT to the human operator's web dashboard (AMS /admin/).
+
+    Call this after every finished piece of work (what was done, outcome,
+    where the output is). Fire-and-forget: no answer is expected. NEVER put
+    secrets, tokens or passwords in the body."""
+    agent_id, api_key = _ensure_joined()
+    return api.operator_post(agent_id, api_key, "report", body, title=title, task_id=task_id)
+
+
+@mcp.tool()
+def operator_status(
+    body: str, title: str | None = None, task_id: str | None = None, ack: str | None = None
+) -> dict:
+    """Push a short PROGRESS/status line to the operator's web dashboard
+    (e.g. "migrating step 2/5"). Fire-and-forget. No secrets in the body.
+
+    ack (optional): when the human operator BROADCAST a message to you (its
+    text ends with "[broadcast <id>] ..."), pass that <id> here to acknowledge
+    it; the operator then sees that you received it. Ignored if the id is not
+    one you were sent."""
+    agent_id, api_key = _ensure_joined()
+    if ack is not None:
+        return api.operator_post(agent_id, api_key, "status", body, title=title, task_id=task_id, ack=ack)
+    return api.operator_post(agent_id, api_key, "status", body, title=title, task_id=task_id)
+
+
+@mcp.tool()
+def operator_ask(question: str, title: str | None = None, task_id: str | None = None) -> dict:
+    """Ask the human operator a QUESTION on the web dashboard and return
+    immediately with {event_id, ...} (it does not block).
+
+    IMPORTANT: ALSO ask the same question to the human in your own CLI/chat.
+    The human can answer on the web OR in the CLI -- whichever answer comes
+    FIRST wins. A web answer arrives in your inbox as a message starting with
+    "[ANSWER to question <event_id>] ..." (treat it as the human's answer), or
+    you can poll with operator_check_answer(event_id). If the human answers in
+    the CLI instead, call operator_resolve(event_id, answer) so the web shows
+    the question as answered. No secrets in the question."""
+    agent_id, api_key = _ensure_joined()
+    return api.operator_post(agent_id, api_key, "question", question, title=title, task_id=task_id)
+
+
+@mcp.tool()
+def operator_check_answer(event_id: str) -> dict:
+    """Check a question asked with operator_ask. Returns the event; when
+    status == "answered", `answer` and `answered_via` ("web" or "cli") are set."""
+    agent_id, api_key = _ensure_joined()
+    return api.operator_get(agent_id, api_key, event_id)
+
+
+@mcp.tool()
+def operator_resolve(event_id: str, answer: str) -> dict:
+    """Record that the human answered question `event_id` in the CLI (not on
+    the web), so the dashboard shows it as answered. Fails if it was already
+    answered (the first answer wins -- use operator_check_answer to see it)."""
+    agent_id, api_key = _ensure_joined()
+    return api.operator_resolve(agent_id, api_key, event_id, answer)
+
+
+@mcp.tool()
+def agent_context() -> dict:
+    """Ask AMS everything about YOURSELF: your agent_id, display_name, role,
+    project, host_id, channel, parent_agent_id, capabilities, profile (null if
+    none yet), the task currently assigned/claimed to you, your unread messages
+    (count + ids/senders; reading this does NOT consume them), your address book
+    and the reply rules.
+
+    IMPORTANT: "system-dashboard" in the address book is the HUMAN OPERATOR (a
+    person on the AMS web dashboard), NOT another AI agent. Returns only your
+    own data. Call it whenever you are unsure who you are, what you are
+    working on, or who to answer."""
+    agent_id, api_key = _ensure_joined()
+    return api.agent_context(agent_id, api_key)
+
+
+@mcp.tool()
+def agent_message_origin(message_id: str) -> dict:
+    """Look up the ORIGINAL message with this message_id (one you sent or
+    received) and who sent it: from_agent, sender_display_name and sender_kind.
+
+    sender_kind == "operator" means from_agent is "system-dashboard", the
+    HUMAN OPERATOR (a person) -> answer with operator_report / operator_status / operator_ask.
+    sender_kind == "agent" means another AI agent -> answer with
+    agent_send_message to that from_agent. Does not consume the message. An id
+    that is unknown or not yours returns an error (it looks the same either way)."""
+    agent_id, api_key = _ensure_joined()
+    try:
+        return api.message_origin(agent_id, api_key, message_id)
+    except api.GatewayError:
+        return {"error": f"message {message_id} not found"}
+
+
+ONBOARDING_TEXT = """AMS (Agent Mesh) onboarding
+
+WHO IS WHO
+- You are an agent in the mesh. agent_context() tells you your role, project, task and unread messages.
+- "system-dashboard" is the HUMAN OPERATOR: a real person on the AMS web dashboard. It is NOT an AI agent.
+- Every other agent_id is another AI agent.
+
+HOW TO REPLY
+- Work that comes from AMS (a message from system-dashboard, or a task): answer the human with
+  operator_report (final result), operator_status (progress line) or operator_ask (a question).
+- A message from another agent: answer with agent_send_message to that message's from_agent.
+- Always include task_id (when there is one) and in_reply_to (the message_id you are answering).
+- Not sure who sent a message? agent_message_origin(message_id) returns sender_kind (operator or agent).
+
+BROADCASTS
+- If the operator broadcasts to all agents, the message ends with "[broadcast <id>]".
+  Acknowledge with operator_status(body, ack="<id>").
+
+NEVER put secrets, tokens or passwords in any message or report."""
+
+
+@mcp.prompt(name="ams-onboarding")
+def ams_onboarding_prompt() -> str:
+    """Roles, reply rules and how to report in AMS (operator_report/status/ask)."""
+    return ONBOARDING_TEXT
+
+
+@mcp.resource("ams://onboarding", name="ams-onboarding")
+def ams_onboarding_resource() -> str:
+    """Roles, reply rules and how to report in AMS (operator_report/status/ask)."""
+    return ONBOARDING_TEXT
 
 
 def main() -> None:

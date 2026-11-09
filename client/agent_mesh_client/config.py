@@ -15,6 +15,12 @@ def join_token() -> str:
     return os.environ.get("AGENT_MESH_JOIN_TOKEN", DEFAULT_JOIN_TOKEN)
 
 
+def enroll_code() -> str | None:
+    """One-time enrollment code (AGENT_MESH_ENROLL_CODE), or None. Sent on /agents/join
+    as X-Enrollment-Token only while this agent has no saved credential yet."""
+    return os.environ.get("AGENT_MESH_ENROLL_CODE") or None
+
+
 def _cred_dir() -> Path:
     return Path(os.environ.get("AGENT_MESH_HOME", str(Path.home() / ".agent-mesh")))
 
@@ -37,13 +43,41 @@ def save_credential(agent_id: str, api_key: str) -> None:
     cred_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
     creds = load_credentials()
     creds[agent_id] = api_key
-    cred_file = _cred_file()
-    cred_file.write_text(json.dumps(creds))
-    os.chmod(cred_file, 0o600)
+    from .state import atomic_write_text
+
+    atomic_write_text(_cred_file(), json.dumps(creds))
 
 
 def get_api_key(agent_id: str) -> str | None:
     return load_credentials().get(agent_id)
+
+
+def _alias_file() -> Path:
+    return _cred_dir() / "aliases.json"
+
+
+def _load_aliases() -> dict:
+    alias_file = _alias_file()
+    if alias_file.exists():
+        return json.loads(alias_file.read_text())
+    return {}
+
+
+def save_alias(derived_agent_id: str, issued_agent_id: str) -> None:
+    """An enrolled agent is issued a PLANNED agent_id that differs from the id derived
+    from (user, machine, workspace, role). Remember derived -> issued so later joins and
+    tool calls keep using the issued id."""
+    cred_dir = _cred_dir()
+    cred_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+    aliases = _load_aliases()
+    aliases[derived_agent_id] = issued_agent_id
+    from .state import atomic_write_text
+
+    atomic_write_text(_alias_file(), json.dumps(aliases))
+
+
+def resolve_agent_id(derived_agent_id: str) -> str:
+    return _load_aliases().get(derived_agent_id, derived_agent_id)
 
 
 def _role_file() -> Path:
@@ -74,9 +108,9 @@ def save_role(
         "domain": domain or existing.get("domain", ""),
         "project": project or existing.get("project"),
     }
-    role_file = _role_file()
-    role_file.write_text(json.dumps(roles))
-    os.chmod(role_file, 0o600)
+    from .state import atomic_write_text
+
+    atomic_write_text(_role_file(), json.dumps(roles))
 
 
 def get_role(workspace: str) -> dict | None:

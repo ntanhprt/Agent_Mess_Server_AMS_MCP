@@ -91,5 +91,6 @@ def build_identity(
         "display_name": display_name,
         "domain": domain,
         "project": project,
-        "agent_id": compute_agent_id(user_id, machine_id, workspace, role),
+        # an enrolled agent keeps the planned id it was issued (config.save_alias)
+        "agent_id": config.resolve_agent_id(compute_agent_id(user_id, machine_id, workspace, role)),
     }
